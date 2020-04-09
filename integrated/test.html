@@ -1,0 +1,158 @@
+<!DOCTYPE HTML>
+
+<html>
+   <head>
+         <script src="WebGLCanvas.js"></script>
+         <script type = "text/javascript" src="decoder.js"></script>
+         <script type = "text/javascript" src="libde265.js"></script>
+         <script type="text/javascript" src="wrapper.js"></script>
+   <!--  <script type="text/javascript" src="dist/opus_to_pcm.js"></script>
+         <script type="text/javascript" src="player/pcm_player.js"></script>-->
+   
+        <script type = "text/javascript">       
+        var player = null;
+        var display;
+        var nalgen = null;
+        var cwidth=1920,cheight=1080;
+        var skipfirst=0;
+        var ws;
+        var inputUrl;
+        var display;
+        var status;
+
+        /*window.onload = function() {
+            var URL = (window.URL || window.webkitURL);
+            var websocket_port = 8080;
+
+            // Connect to the specified port
+            var url_address = "rtsp://192.168.1.100/stream1";
+
+            status = document.getElementById("status");
+        }*/
+
+        var h265Decoder;
+       var decoder = new Worker('decoder.js');
+       decoder.addEventListener('message', function(e) {
+            //cheight=getFrameHeight();
+            //cwidth=getFrameWidth();
+           var message = e.data;
+            display.drawNextOuptutPictureGL(cwidth,cheight,null,message.data);
+           /*window.setTimeout(function() {
+               //loadNextFrame();
+               display.drawNextOuptutPictureGL(cwidth,cheight,null,message.data);
+           },15);*/
+       });
+
+
+          function playStreamH264() {
+            
+            /*if ("WebSocket" in window) {
+               alert("WebSocket is supported by your Browser!");*/
+              display = new WebGLCanvas(document.getElementById('video')); 
+               inputUrl=document.getElementById("url").value;  
+               // Let us open a web socket
+               ws = new WebSocket("ws://192.168.4.71:7681");
+                
+               ws.onopen = function() { 
+                  // Web Socket is connected, send data using send()
+                  ws.binaryType = 'arraybuffer';
+                  ws.send(inputUrl);
+               };
+            
+               ws.onmessage = function (evt) { 
+                        var WorkingbyteArray = new Uint8Array(evt.data)
+                        decoder.postMessage({type:'frame', data:WorkingbyteArray});
+               };
+            
+               ws.onclose = function() { 
+                  // websocket is closed.
+                  alert("Connection is closed...");
+                  //close_decoder(h);
+                  decoder.postMessage({type:'close'}); 
+               };
+            /*} else {
+              
+               // The browser doesn't support WebSocket
+               alert("WebSocket NOT supported by your Browser!");
+            }*/
+         }
+         function playStreamH265() {
+
+                var video = document.getElementById("video");
+                inputUrl=document.getElementById("url").value;
+                /*if (player) {
+                    player.stop();
+                }
+
+                console.log("Playing with libde265", libde265.de265_get_version());
+                player = new libde265.StreamPlayer(video);
+                
+                player.playback(inputUrl);*/
+
+                console.log("Playing with libde265", libde265.de265_get_version());
+                //player = new libde265.StreamPlayer(video);
+                
+                h265Decoder = open_decoder();
+                ws = new WebSocket("ws://192.168.4.71:7681");
+                    
+                 ws.onopen = function() {
+                              
+                    // Web Socket is connected, send data using send()
+                    ws.binaryType = 'arraybuffer';
+                    ws.send(inputUrl);
+
+                 };
+
+                 ws.onmessage = function (evt) {
+                    if (evt == null)
+                    {
+                        return;
+                    }
+                    if(evt.data == "Failed to connect to stream.")
+                    {
+                          alert(evt.data);
+                          close_decoder(h265Decoder);
+                          ws.send("close");  
+                    }
+                    else
+                    {
+                        var WorkingbyteArray = new Uint8Array(evt.data)
+                        decode_h264nal(h265Decoder,WorkingbyteArray,WorkingbyteArray.length)
+                         //decoder.postMessage({type:'frame', data:WorkingbyteArray});//,t:kFeedDataReq});
+                           //var WorkingbyteArray = new Uint8Array(evt.data)
+                        // decoder.postMessage({type:'frame', data:WorkingbyteArray});
+                    }
+                };
+
+                ws.onclose = function() { 
+                  // websocket is closed.
+                  alert("H265 Connection is closed...");
+                  //close_decoder(h);
+                  if(h265Decoder)
+                    close_decoder(h265Decoder); 
+               };
+         }
+          function stopStreaming(){
+
+            ws.close();
+            if(decoder)
+              decoder.postMessage({type:'close'});
+          }
+
+      </script>
+
+
+   </head>
+   
+   <body>
+      <div id = "sse">
+          <input type="text" id="url" />
+          <button id ="play" type="button" onclick="javascript:playStreamH264()">Play H264</button>
+          <button id ="play" type="button" onclick="javascript:playStreamH265()">Play H265</button> 
+         <button type="button" onclick="javascript:stopStreaming()">Stop Streaming</button> 
+      </div>
+          
+      <canvas id="video" width=1920 height=1080></canvas>
+      <span id="status"></span>
+   </body>
+</html>
